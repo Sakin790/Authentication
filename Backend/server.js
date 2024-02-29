@@ -1,9 +1,11 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const dotenv = require("dotenv");
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import { default as connectDB } from "./db/db.js";
+
 
 dotenv.config();
 
@@ -11,23 +13,17 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Connect to MongoDB
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("MongoDB Connected"))
+connectDB()
   .then(() => {
-    app.listen(process.env.PORT || 8000, () => {
-      console.log(`Server in running at PORT : ${process.env.PORT}`);
+    app.listen(process.env.PORT || 8080, () => {
+      console.log(`Server is Running at Port: ${process.env.PORT}`);
     });
   })
-  .catch((err) => console.error(err));
+  .catch((error) => {
+    console.log("MongoBD Connection failed", error);
+  });
 
-// CORS Middleware (adjust configuration as needed)
 app.use(cors({ origin: process.env.CLIENT_URL }));
-
-// Body Parser Middleware
 app.use(express.json());
 
 // User Schema and Model
@@ -66,14 +62,14 @@ UserSchema.pre("save", async function (next) {
 
 // Generate JWT for user authentication
 const generateToken = (user) => {
-  return jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+  return jwt.sign({ _id: user._id }, process.env.JWT_SECRET || "snbdshdbn", {
     expiresIn: "1h",
   });
 };
 
 app.get("/", (req, res) => {
   res.status(200).json({
-    message: "Server Working",
+    message: " Auth Server Working",
   });
 });
 
@@ -82,9 +78,7 @@ app.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
 
   // Basic validation
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: "Please fill all fields" });
-  }
+  
 
   const existingUser = await User.findOne({ email });
   if (existingUser) {
@@ -92,8 +86,14 @@ app.post("/register", async (req, res) => {
   }
 
   try {
-    const newUser = await new User({ name, email, password });
-    const savedUser = await newUser.save();
+     const user = await User.create({
+      name: name.toLowerCase(),
+      email,
+      password,
+     
+    });
+
+    const savedUser = await user.save();
     const token = generateToken(savedUser);
     res.status(201).json({ user: savedUser, token });
   } catch (err) {
@@ -107,9 +107,7 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   // Basic validation
-  if (!email || !password) {
-    return res.status(400).json({ message: "Please fill all fields" });
-  }
+ 
 
   const existingUser = await User.findOne({ email });
   if (!existingUser) {
@@ -126,7 +124,7 @@ app.post("/login", async (req, res) => {
     res.json({ token }); // Send only the token upon successful login
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Login failed" });
+    res.status(500).json({ message: "Login failed",err });
   }
 });
 
